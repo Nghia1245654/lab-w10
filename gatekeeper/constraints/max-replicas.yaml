@@ -9,6 +9,6 @@ spec:
     kinds:
       - apiGroups: ["apps"]
         kinds: ["Deployment"]
-    excludedNamespaces: ["kube-system", "monitoring", "argocd", "gatekeeper-system"]
+    excludedNamespaces: ["kube-system", "monitoring", "argocd", "gatekeeper-system", "external-secrets"]
   parameters:
     maxReplicas: 5

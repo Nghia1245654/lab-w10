@@ -9,7 +9,7 @@ spec:
     kinds:
       - apiGroups: [""]
         kinds: ["Pod"]
-    excludedNamespaces: ["kube-system", "monitoring", "argocd", "gatekeeper-system"]
+    excludedNamespaces: ["kube-system", "monitoring", "argocd", "gatekeeper-system", "external-secrets"]
   parameters:
     runAsUser:
       rule: MustRunAsNonRoot
