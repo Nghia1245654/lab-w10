@@ -1,0 +1,64 @@
+name: validate
+
+on:
+  pull_request:
+    paths:
+      - "app-alert/**"
+      - "app-analysis/**"
+      - "app-api/**"
+      - "app-common/**"
+      - "argocd/**"
+      - "eso/**"
+      - "gatekeeper/**"
+      - "rbac/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Cấp quyền cho GitHub Actions Bot ghi comment lên Pull Request
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Kubeconform
+        run: |
+          curl -sLo kc.tgz https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf kc.tgz && sudo mv kubeconform /usr/local/bin/
+          rm kc.tgz
+
+      - name: Validate Kubernetes Manifests
+        id: kubeconform
+        run: |
+          echo 'results<<EOF' >> $GITHUB_OUTPUT
+          kubeconform -strict -summary -ignore-missing-schemas app-alert/ app-analysis/ app-api/ app-common/ argocd/ eso/ gatekeeper/ rbac/ >> $GITHUB_OUTPUT 2>&1 || true
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+      - name: Post PR Comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const results = `${{ steps.kubeconform.outputs.results }}`;
+            const isSuccess = !results.includes('failed validation') && !results.includes('Error');
+            
+            const commentBody = `### 🤖 Kubernetes Manifest Validation Report
+            
+            ${isSuccess ? '✅ **All manifests are valid!**' : '❌ **Validation failed! Please check the details below:**'}
+            
+            \`\`\`text
+            ${results}
+            \`\`\`
+            
+            *Report generated automatically by Kubeconform Validation Bot.*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+            
+            if (!isSuccess) {
+              core.setFailed('Kubernetes manifest validation failed.');
+            }
