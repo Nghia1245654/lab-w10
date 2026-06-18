@@ -1,0 +1,2 @@
+# Ignore email secret with sensitive credentials
+app-alert/email-secret.yaml
