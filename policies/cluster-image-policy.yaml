@@ -1,0 +1,16 @@
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: image-signature-policy
+spec:
+  mode: enforce
+  images:
+    - glob: "ghcr.io/nghia1245654/w10-api*"
+  authorities:
+    - name: cosign-key
+      key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEbN94bhOOfk807nQSMSEOGJpzt3dT
+          yfTw5jnPhHinpndP3nLgZXNjBUta93Rc58o6EBNCZXuSpR5a8KWYsO4QJw==
+          -----END PUBLIC KEY-----
