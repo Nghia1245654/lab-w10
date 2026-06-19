@@ -29,30 +29,47 @@ spec:
       rego: |
         package k8sdisallowedtags
 
+        # Import helper để kiểm tra xem container có thuộc diện miễn trừ không
         import data.lib.exempt_container.is_exempt
 
+        # Luật 1: Phát hiện và chặn container sử dụng tag nằm trong danh sách cấm (ví dụ: latest)
         violation[{"msg": msg}] {
+            # Lấy từng container trong Pod
             container := input_containers[_]
+            # Bỏ qua nếu container thuộc danh sách miễn trừ
             not is_exempt(container)
+            # Thêm dấu ":" vào trước từng tag bị cấm để đối chiếu chính xác (ví dụ: latest -> :latest)
             tags := [tag_with_prefix | tag := input.parameters.tags[_]; tag_with_prefix := concat(":", ["", tag])]
+            # Kiểm tra xem tên image có chứa hậu tố trùng với tag bị cấm hay không
             strings.any_suffix_match(container.image, tags)
+            # Trả về lỗi vi phạm nếu trùng khớp
             msg := sprintf("container <%v> uses a disallowed tag <%v>; disallowed tags are %v", [container.name, container.image, input.parameters.tags])
         }
 
+        # Luật 2: Phát hiện và chặn container không khai báo tag (vì K8s sẽ tự động hiểu là latest nếu thiếu tag)
         violation[{"msg": msg}] {
+            # Lấy từng container trong Pod
             container := input_containers[_]
+            # Bỏ qua nếu container thuộc danh sách miễn trừ
             not is_exempt(container)
+            # Cắt đường dẫn image bằng ký tự "/" để lấy phần tên ảnh ở cuối cùng
             parts := split(container.image, "/")
+            # Nếu phần tên ảnh cuối cùng không chứa dấu hai chấm ":" -> Nghĩa là không có tag
             not contains(parts[count(parts) - 1], ":")
+            # Trả về lỗi vi phạm
             msg := sprintf("container <%v> didn't specify an image tag <%v>", [container.name, container.image])
         }
 
+        # Gom tất cả các loại container trong Spec của Pod vào một danh sách duy nhất để kiểm tra
+        # 1. Các container chạy ứng dụng chính
         input_containers[c] {
             c := input.review.object.spec.containers[_]
         }
+        # 2. Các container chạy khởi tạo trước (Init Containers)
         input_containers[c] {
             c := input.review.object.spec.initContainers[_]
         }
+        # 3. Các container debug phụ trợ (Ephemeral Containers)
         input_containers[c] {
             c := input.review.object.spec.ephemeralContainers[_]
         }
@@ -60,20 +77,28 @@ spec:
         - |
           package lib.exempt_container
 
+          # Hàm chính kiểm tra xem container có được miễn trừ kiểm duyệt không
           is_exempt(container) {
+              # Lấy danh sách exemptImages từ tham số cấu hình (mặc định trả về mảng rỗng nếu không khai báo)
               exempt_images := object.get(object.get(input, "parameters", {}), "exemptImages", [])
               img := container.image
+              # Duyệt qua từng ảnh trong danh sách miễn trừ
               exemption := exempt_images[_]
+              # Thực hiện so khớp tên ảnh hiện tại với phần tử miễn trừ
               _matches_exemption(img, exemption)
           }
 
+          # So khớp miễn trừ trường hợp khớp tuyệt đối (không chứa ký tự đại diện *)
           _matches_exemption(img, exemption) {
               not endswith(exemption, "*")
               exemption == img
           }
 
+          # So khớp miễn trừ trường hợp có sử dụng ký tự đại diện * (ví dụ: nginx*)
           _matches_exemption(img, exemption) {
               endswith(exemption, "*")
+              # Cắt bỏ ký tự "*" ở cuối để lấy tiền tố đối chiếu (ví dụ: nginx)
               prefix := trim_suffix(exemption, "*")
+              # Kiểm tra xem tên ảnh của container có bắt đầu bằng tiền tố đó không
               startswith(img, prefix)
           }
