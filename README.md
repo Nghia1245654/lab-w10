@@ -33,14 +33,7 @@ Tài liệu này tổng hợp toàn bộ các kết quả và minh chứng hình
 *   **Cách chụp:** Trong log chạy GitHub Actions, mở chi tiết bước `Sign the published image` hiển thị kết quả ký số thành công bằng cặp khóa bảo mật và mật khẩu lưu trữ tại GitHub Secrets.
 *   **Minh chứng:**
 ![alt text](<image/image copy 15.png>)
-### 7. Xác thực chữ ký số thành công dưới cụm K8s
-*   **Cách chụp:** Thực hiện mô tả chi tiết Pod ứng dụng bằng lệnh:
-    ```bash
-    kubectl describe pod -l app=w10-api -n demo
-    ```
-    Hoặc kiểm tra log của Admission Controller xác nhận ảnh container đã vượt qua bước đối chiếu chữ ký số thành công trước khi kéo về chạy.
-*   **Minh chứng:**
-    ![Signature Verification Status](image/image copy 5.png)
+
 
 ### 8. Email cảnh báo Alertmanager gửi về hộp thư thành công
 *   **Cách chụp:** Mở hộp thư Gmail cá nhân dùng để nhận cảnh báo, chụp email nhận được có tiêu đề gửi từ Alertmanager (chẳng hạn như cảnh báo thử nghiệm `TestAlertmanagerEmail`), hiển thị rõ thông tin nội dung cảnh báo.
