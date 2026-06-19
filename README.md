@@ -29,29 +29,29 @@ Tài liệu này tổng hợp toàn bộ các kết quả và minh chứng hình
 *   **Minh chứng:**
 ![alt text](<image/image copy 9.png>)
 
-### 6. Ký số ảnh container bằng Cosign
+### 5. Ký số ảnh container bằng Cosign
 *   **Cách chụp:** Trong log chạy GitHub Actions, mở chi tiết bước `Sign the published image` hiển thị kết quả ký số thành công bằng cặp khóa bảo mật và mật khẩu lưu trữ tại GitHub Secrets.
 *   **Minh chứng:**
 ![alt text](<image/image copy 15.png>)
 
 
-### 8. Email cảnh báo Alertmanager gửi về hộp thư thành công
+### 6. Email cảnh báo Alertmanager gửi về hộp thư thành công
 *   **Cách chụp:** Mở hộp thư Gmail cá nhân dùng để nhận cảnh báo, chụp email nhận được có tiêu đề gửi từ Alertmanager (chẳng hạn như cảnh báo thử nghiệm `TestAlertmanagerEmail`), hiển thị rõ thông tin nội dung cảnh báo.
 *   **Minh chứng:**
 ![alt text](<image/image copy 18.png>)
-### 9. OPA Gatekeeper chặn Pod sử dụng tag ":latest"
+### 7. OPA Gatekeeper chặn Pod sử dụng tag ":latest"
 *   **Cách chụp:** Mở terminal chạy lệnh deploy một Pod sử dụng ảnh có tag `:latest` (ví dụ `nginx:latest`). Chụp màn hình terminal hiển thị thông báo lỗi từ chối từ Gatekeeper (`Admission webhook denied the request: latest tag is not allowed`).
 *   **Minh chứng:**
 ![alt text](<image/image copy 17.png>)
-### 10. OPA Gatekeeper chặn Pod bật "hostNetwork: true"
+### 8. OPA Gatekeeper chặn Pod bật "hostNetwork: true"
 *   **Cách chụp:** Chạy thử một file YAML của Pod cấu hình `hostNetwork: true`. Chụp màn hình thông báo lỗi chặn của Gatekeeper (`The specified hostNetwork and hostPort are not allowed`).
 *   **Minh chứng:**
 ![alt text](<image/image copy 3.png>)
-### 11. OPA Gatekeeper chặn Pod không khai báo Resource Limits
+### 9. OPA Gatekeeper chặn Pod không khai báo Resource Limits
 *   **Cách chụp:** Thử nghiệm tạo Pod không có phần định nghĩa `limits` hoặc `requests` cho tài nguyên (CPU, Memory). Chụp màn hình thông báo lỗi chặn (`container does not have limits defined`).
 *   **Minh chứng:**
 ![alt text](<image/image copy 16.png>)
-### 12. OPA Gatekeeper chặn Deployment vượt giới hạn replicas
+### 10. OPA Gatekeeper chặn Deployment vượt giới hạn replicas
 *   **Cách chụp:** Thay đổi số lượng replicas trong Deployment vượt quá số lượng tối đa cho phép (ví dụ đặt 5 replicas). Chụp màn hình thông báo lỗi chặn (`The replica count exceeds the maximum allowed`).
 *   **Minh chứng:**
 ![alt text](<image/image copy 4.png>)
