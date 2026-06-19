@@ -14,6 +14,15 @@ spec:
     targetRevision: 65.1.1
     helm:
       values: |
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+        kubeProxy:
+          enabled: false
+
         prometheus:
           prometheusSpec:
             serviceMonitorSelectorNilUsesHelmValues: false
@@ -27,19 +36,19 @@ spec:
               group_wait: 10s
               group_interval: 5m
               repeat_interval: 12h
-              receiver: 'null'
+              receiver: 'email-notifications'
               routes:
-              - receiver: 'email-notifications'
+              - receiver: 'null'
                 matchers:
-                - alertname =~ "TestAlertmanagerEmail|SLOViolation"
+                - alertname = "Watchdog"
             receivers:
             - name: 'null'
             - name: 'email-notifications'
               email_configs:
-              - to: 'vuongbachdoan@gmail.com'
-                from: 'vuongbachdoan@gmail.com'
+              - to: 'kingwinlimo@gmail.com'
+                from: 'kingwinlimo@gmail.com'
                 smarthost: 'smtp.gmail.com:587'
-                auth_username: 'vuongbachdoan@gmail.com'
+                auth_username: 'kingwinlimo@gmail.com'
                 auth_password_file: /etc/alertmanager/secrets/alertmanager-email/password
                 require_tls: true
                 headers:
