@@ -82,37 +82,48 @@ spec:
             import data.lib.exclude_update.is_update
             import data.lib.exempt_container.is_exempt
 
+            # Luật chính: Phát hiện và chặn nếu sử dụng hostNetwork hoặc hostPort nằm ngoài dải cho phép
             violation[{"msg": msg, "details": {}}] {
+                # Chỉ kiểm tra khi tạo mới (CREATE), bỏ qua cập nhật (UPDATE)
                 not is_update(input.review)
+                # Kiểm tra xem có cấu hình vi phạm chia sẻ hostNetwork hoặc hostPort không
                 input_share_hostnetwork(input.review.object)
+                # Trả về lỗi vi phạm
                 msg := sprintf("The specified hostNetwork and hostPort are not allowed, pod: %v. Allowed values: %v", [input.review.object.metadata.name, input.parameters])
             }
 
+            # Quy tắc 1: Chặn nếu pod bật hostNetwork (sử dụng mạng của máy chủ Host) nhưng tham số hostNetwork của chính sách là false (cấm)
             input_share_hostnetwork(o) {
                 not input.parameters.hostNetwork
                 o.spec.hostNetwork
             }
 
+            # Quy tắc 2: Chặn nếu container sử dụng hostPort nhỏ hơn cổng tối thiểu cho phép (min)
             input_share_hostnetwork(_) {
                 hostPort := input_containers[_].ports[_].hostPort
                 hostPort < input.parameters.min
             }
 
+            # Quy tắc 3: Chặn nếu container sử dụng hostPort lớn hơn cổng tối đa cho phép (max)
             input_share_hostnetwork(_) {
                 hostPort := input_containers[_].ports[_].hostPort
                 hostPort > input.parameters.max
             }
 
+            # Gom tất cả container trong Pod (loại trừ các container được miễn trừ)
+            # 1. Các container chính
             input_containers[c] {
                 c := input.review.object.spec.containers[_]
                 not is_exempt(c)
             }
 
+            # 2. Các container khởi tạo (Init Containers)
             input_containers[c] {
                 c := input.review.object.spec.initContainers[_]
                 not is_exempt(c)
             }
 
+            # 3. Các container debug (Ephemeral Containers)
             input_containers[c] {
                 c := input.review.object.spec.ephemeralContainers[_]
                 not is_exempt(c)
@@ -121,26 +132,35 @@ spec:
             - |
               package lib.exclude_update
 
+              # Kiểm tra xem đây có phải là hành động UPDATE (cập nhật tài nguyên) hay không
               is_update(review) {
                   review.operation == "UPDATE"
               }
             - |
               package lib.exempt_container
 
+              # Hàm chính kiểm tra xem container có được miễn trừ kiểm duyệt không
               is_exempt(container) {
+                  # Lấy danh sách exemptImages từ cấu hình tham số (trả về mảng rỗng nếu không khai báo)
                   exempt_images := object.get(object.get(input, "parameters", {}), "exemptImages", [])
                   img := container.image
+                  # Duyệt qua từng ảnh trong danh sách miễn trừ
                   exemption := exempt_images[_]
+                  # Thực hiện so khớp tên ảnh hiện tại với phần tử miễn trừ
                   _matches_exemption(img, exemption)
               }
 
+              # So khớp miễn trừ trường hợp khớp tuyệt đối (không chứa ký tự đại diện *)
               _matches_exemption(img, exemption) {
                   not endswith(exemption, "*")
                   exemption == img
               }
 
+              # So khớp miễn trừ trường hợp có sử dụng ký tự đại diện * (ví dụ: nginx*)
               _matches_exemption(img, exemption) {
                   endswith(exemption, "*")
+                  # Cắt bỏ ký tự "*" ở cuối để lấy tiền tố đối chiếu (ví dụ: nginx)
                   prefix := trim_suffix(exemption, "*")
+                  # Kiểm tra xem tên ảnh của container có bắt đầu bằng tiền tố đó không
                   startswith(img, prefix)
               }

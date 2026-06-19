@@ -41,30 +41,44 @@ spec:
 
         import data.lib.exempt_container.is_exempt
 
+        # Luật 1: Kiểm duyệt lỗi vi phạm đối với các container chạy ứng dụng chính (containers)
         violation[{"msg": msg}] {
           general_violation[{"msg": msg, "field": "containers"}]
         }
 
+        # Luật 2: Kiểm duyệt lỗi vi phạm đối với các container khởi tạo (initContainers)
         violation[{"msg": msg}] {
           general_violation[{"msg": msg, "field": "initContainers"}]
         }
 
+        # Luật chung kiểm tra Resource Limits (Giới hạn tài nguyên tối đa)
         general_violation[{"msg": msg, "field": field}] {
           container := input.review.object.spec[field][_]
+          # Bỏ qua nếu container thuộc diện miễn trừ
           not is_exempt(container)
+          # Gom danh sách các loại tài nguyên thực tế đã cấu hình trong limits (ví dụ: cpu, memory)
           provided := {resource_type | container.resources.limits[resource_type]}
+          # Gom danh sách các loại tài nguyên bắt buộc phải có từ tham số cấu hình
           required := {resource_type | resource_type := input.parameters.limits[_]}
+          # Tìm các tài nguyên bị thiếu (phép trừ tập hợp: bắt buộc - thực tế)
           missing := required - provided
+          # Nếu có tài nguyên bị thiếu (số lượng > 0), báo lỗi vi phạm
           count(missing) > 0
           msg := sprintf("container <%v> does not have <%v> limits defined", [container.name, missing])
         }
 
+        # Luật chung kiểm tra Resource Requests (Tài nguyên yêu cầu khởi chạy tối thiểu)
         general_violation[{"msg": msg, "field": field}] {
           container := input.review.object.spec[field][_]
+          # Bỏ qua nếu container thuộc diện miễn trừ
           not is_exempt(container)
+          # Gom danh sách các loại tài nguyên thực tế đã cấu hình trong requests
           provided := {resource_type | container.resources.requests[resource_type]}
+          # Gom danh sách các loại tài nguyên bắt buộc phải có từ tham số cấu hình
           required := {resource_type | resource_type := input.parameters.requests[_]}
+          # Tìm các tài nguyên bị thiếu
           missing := required - provided
+          # Nếu có tài nguyên bị thiếu, báo lỗi vi phạm
           count(missing) > 0
           msg := sprintf("container <%v> does not have <%v> requests defined", [container.name, missing])
         }
@@ -72,20 +86,28 @@ spec:
         - |
           package lib.exempt_container
 
+          # Hàm chính kiểm tra xem container có được miễn trừ kiểm duyệt không
           is_exempt(container) {
+              # Lấy danh sách exemptImages từ cấu hình tham số (trả về mảng rỗng nếu không khai báo)
               exempt_images := object.get(object.get(input, "parameters", {}), "exemptImages", [])
               img := container.image
+              # Duyệt qua từng ảnh trong danh sách miễn trừ
               exemption := exempt_images[_]
+              # Thực hiện so khớp tên ảnh hiện tại với phần tử miễn trừ
               _matches_exemption(img, exemption)
           }
 
+          # So khớp miễn trừ trường hợp khớp tuyệt đối (không chứa ký tự đại diện *)
           _matches_exemption(img, exemption) {
               not endswith(exemption, "*")
               exemption == img
           }
 
+          # So khớp miễn trừ trường hợp có sử dụng ký tự đại diện * (ví dụ: nginx*)
           _matches_exemption(img, exemption) {
               endswith(exemption, "*")
+              # Cắt bỏ ký tự "*" ở cuối để lấy tiền tố đối chiếu (ví dụ: nginx)
               prefix := trim_suffix(exemption, "*")
+              # Kiểm tra xem tên ảnh của container có bắt đầu bằng tiền tố đó không
               startswith(img, prefix)
           }

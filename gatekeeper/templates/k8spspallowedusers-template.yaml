@@ -100,28 +100,38 @@ spec:
         import data.lib.exclude_update.is_update
         import data.lib.exempt_container.is_exempt
 
+        # Luật chính: Kiểm duyệt các trường User ID và Group ID của container
         violation[{"msg": msg}] {
+          # Chỉ áp dụng kiểm tra khi tạo mới tài nguyên (CREATE), bỏ qua các hành động UPDATE
           not is_update(input.review)
 
+          # Các trường bảo mật cần quét
           fields := ["runAsUser", "runAsGroup", "supplementalGroups", "fsGroup"]
           field := fields[_]
           container := input_containers[_]
+          
+          # Bỏ qua nếu container thuộc diện miễn trừ
           not is_exempt(container)
+          
+          # Kiểm tra lỗi vi phạm và lấy thông điệp tương ứng
           msg := get_type_violation(field, container)
         }
 
+        # Phân loại kiểm tra: Nếu là trường runAsUser (User chạy container)
         get_type_violation(field, container) = msg {
           field == "runAsUser"
           params := input.parameters[field]
           msg := get_user_violation(params, container)
         }
 
+        # Phân loại kiểm tra: Nếu là các trường Group (runAsGroup, supplementalGroups, fsGroup)
         get_type_violation(field, container) = msg {
           field != "runAsUser"
           params := input.parameters[field]
           msg := get_violation(field, params, container)
         }
 
+        # Luật kiểm tra User: Chặn nếu User ID được cung cấp không nằm trong danh sách cho phép
         get_user_violation(params, container) = msg {
           rule := params.rule
           provided_user := get_field_value("runAsUser", container, input.review)
@@ -129,12 +139,14 @@ spec:
           msg := sprintf("Container %v is attempting to run as disallowed user %v. Allowed runAsUser: %v", [container.name, provided_user, params])
         }
 
+        # Luật kiểm tra User: Chặn nếu luật là "MustRunAs" nhưng container không khai báo runAsUser
         get_user_violation(params, container) = msg {
           not get_field_value("runAsUser", container, input.review)
           params.rule = "MustRunAs"
           msg := sprintf("Container %v is attempting to run without a required securityContext/runAsUser", [container.name])
         }
 
+        # Luật kiểm tra User: Chặn nếu luật là "MustRunAsNonRoot" nhưng container chạy quyền root (ID=0) hoặc thiếu thuộc tính runAsNonRoot
         get_user_violation(params, container) = msg {
           params.rule = "MustRunAsNonRoot"
           not get_field_value("runAsUser", container, input.review)
@@ -142,15 +154,20 @@ spec:
           msg := sprintf("Container %v is attempting to run without a required securityContext/runAsNonRoot or securityContext/runAsUser != 0", [container.name])
         }
 
+        # Định nghĩa các luật chấp nhận cho User:
+        # 1. Chấp nhận mọi User nếu luật là RunAsAny
         accept_users("RunAsAny", _)
 
+        # 2. Chỉ chấp nhận nếu User ID khác 0 (Non-Root)
         accept_users("MustRunAsNonRoot", provided_user) := provided_user != 0
 
+        # 3. Chỉ chấp nhận nếu User ID nằm trong dải min/max được định nghĩa trong tham số
         accept_users("MustRunAs", provided_user) := res  {
           ranges := input.parameters.runAsUser.ranges
           res := is_in_range(provided_user, ranges)
         }
 
+        # Luật kiểm tra Group (cho trường đơn): Chặn nếu Group ID cung cấp không hợp lệ
         get_violation(field, params, container) = msg {
           rule := params.rule
           provided_value := get_field_value(field, container, input.review)
@@ -159,6 +176,7 @@ spec:
           msg := sprintf("Container %v is attempting to run as disallowed group %v. Allowed %v: %v", [container.name, provided_value, field, params])
         }
 
+        # Luật kiểm tra Group (cho mảng): Chặn nếu một trong các Group ID trong mảng không hợp lệ
         get_violation(field, params, container) = msg {
           rule := params.rule
           array_value := get_field_value(field, container, input.review)
@@ -168,20 +186,27 @@ spec:
           msg := sprintf("Container %v is attempting to run with disallowed supplementalGroups %v. Allowed %v: %v", [container.name, array_value, field, params])
         }
 
+        # Luật kiểm tra Group: Chặn nếu luật là "MustRunAs" nhưng container thiếu khai báo trường Group tương ứng
         get_violation(field, params, container) = msg {
           not get_field_value(field, container, input.review)
           params.rule == "MustRunAs"
           msg := sprintf("Container %v is attempting to run without a required securityContext/%v. Allowed %v: %v", [container.name, field, field, params])
         }
 
+        # Định nghĩa các luật chấp nhận cho Group:
+        # 1. Cho phép mọi Group nếu luật là RunAsAny
         accept_value("RunAsAny", _, _)
 
+        # 2. Chấp nhận nếu Group ID nằm trong dải ranges cho phép (luật MayRunAs)
         accept_value("MayRunAs", provided_value, ranges) := is_in_range(provided_value, ranges)
 
+        # 3. Chấp nhận nếu Group ID nằm trong dải ranges cho phép (luật MustRunAs)
         accept_value("MustRunAs", provided_value, ranges) := is_in_range(provided_value, ranges)
 
+        # Hàm lấy giá trị cấu hình bảo mật của container
         get_field_value(field, container, _) := get_seccontext_field(field, container)
 
+        # Nếu container không khai báo, lấy cấu hình bảo mật ở cấp độ Pod (áp dụng chung cho toàn Pod)
         get_field_value(field, container, review) = out {
           not has_seccontext_field(field, container)
           review.kind.kind == "Pod"
@@ -189,11 +214,13 @@ spec:
           out := pod_value
         }
 
+        # Hàm kiểm tra xem giá trị có nằm trong dải min/max cho phép không
         is_in_range(val, ranges) = res {
           matching := {1 | val >= ranges[j].min; val <= ranges[j].max}
           res := count(matching) > 0
         }
 
+        # Các hàm hỗ trợ kiểm tra sự tồn tại của trường trong securityContext
         has_seccontext_field(field, obj) {
           get_seccontext_field(field, obj)
         }
@@ -206,6 +233,7 @@ spec:
           out = obj.securityContext[field]
         }
 
+        # Gom tất cả các container trong Pod
         input_containers[c] {
           c := input.review.object.spec.containers[_]
         }
@@ -219,26 +247,35 @@ spec:
         - |
           package lib.exclude_update
 
+          # Kiểm tra xem đây có phải là hành động UPDATE (cập nhật tài nguyên) hay không
           is_update(review) {
               review.operation == "UPDATE"
           }
         - |
           package lib.exempt_container
 
+          # Hàm chính kiểm tra xem container có được miễn trừ kiểm duyệt không
           is_exempt(container) {
+              # Lấy danh sách exemptImages từ cấu hình tham số (trả về mảng rỗng nếu không khai báo)
               exempt_images := object.get(object.get(input, "parameters", {}), "exemptImages", [])
               img := container.image
+              # Duyệt qua từng ảnh trong danh sách miễn trừ
               exemption := exempt_images[_]
+              # Thực hiện so khớp tên ảnh hiện tại với phần tử miễn trừ
               _matches_exemption(img, exemption)
           }
 
+          # So khớp miễn trừ trường hợp khớp tuyệt đối (không chứa ký tự đại diện *)
           _matches_exemption(img, exemption) {
               not endswith(exemption, "*")
               exemption == img
           }
 
+          # So khớp miễn trừ trường hợp có sử dụng ký tự đại diện * (ví dụ: nginx*)
           _matches_exemption(img, exemption) {
               endswith(exemption, "*")
+              # Cắt bỏ ký tự "*" ở cuối để lấy tiền tố đối chiếu (ví dụ: nginx)
               prefix := trim_suffix(exemption, "*")
+              # Kiểm tra xem tên ảnh của container có bắt đầu bằng tiền tố đó không
               startswith(img, prefix)
           }

@@ -23,9 +23,14 @@ spec:
       rego: |
         package k8smaxreplicacount
 
+        # Luật: Phát hiện và chặn nếu số lượng bản sao (replicas) vượt quá giới hạn tối đa cho phép
         violation[{"msg": msg}] {
+            # Lấy số lượng replica từ Spec của đối tượng yêu cầu (ví dụ: Deployment)
             replicas := input.review.object.spec.replicas
+            # Lấy giới hạn replica tối đa từ tham số cấu hình
             max_replicas := input.parameters.maxReplicas
+            # So sánh: nếu số replica lớn hơn giới hạn tối đa
             replicas > max_replicas
+            # Trả về thông điệp báo lỗi vi phạm
             msg := sprintf("The deployment replicas count %v exceeds the maximum allowed limit of %v", [replicas, max_replicas])
         }
